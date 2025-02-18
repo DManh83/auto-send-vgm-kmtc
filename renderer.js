@@ -1,12 +1,17 @@
 async function submitData() {
     const blNo = document.getElementById('blNo').value;
     const file = document.getElementById('file').files[0];
+
+    if(!blNo) {
+      alert('BL No. is required');
+      return;
+    }
     
     try {
-        const blNoResult = await window.electronAPI.submitBlNo(blNo);
-        const fileResult = await window.electronAPI.uploadXlsx(file.path);
+        const blNoResult = await window.electronAPI.submitButton(blNo, file?.path);
+        // const fileResult = await window.electronAPI.uploadFile(file.path);
         
-        if (blNoResult.success && fileResult.success) {
+        if (blNoResult.success) {
             alert('Submitted successfully!');
         } else {
             alert('Submission failed!');
@@ -14,4 +19,13 @@ async function submitData() {
     } catch (error) {
         alert('Error: ' + error.message);
     }
+}
+
+function resetData() {
+    const file = document.getElementById('file');
+    file.value = '';
+    const blNo = document.getElementById('blNo');
+    blNo.value = '';
+    file.dispatchEvent(new Event('change'));
+    blNo.dispatchEvent(new Event('change'));
 }

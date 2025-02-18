@@ -1,4 +1,4 @@
-# electron-quick-start
+# Auto Send VGM KMTCT
 
 **Clone and run for a quick way to see Electron in action.**
 

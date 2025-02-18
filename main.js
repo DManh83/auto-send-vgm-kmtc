@@ -1,14 +1,15 @@
 // Modules to control application life and create native browser window
-const { app, BrowserWindow, ipcMain, globalShortcut, clipboard } = require('electron')
+const { app, BrowserWindow, ipcMain, globalShortcut, clipboard, dialog } = require('electron')
 const path = require('node:path')
 const robot = require('robotjs');
 const dotenv = require('dotenv');
+const XLSX = require('xlsx');
 // let robotProcess = null;  // 存储子进程的引用
+
+dotenv.config();
 
 let mainWindow;
 let webWindow;
-
-dotenv.config();
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -47,7 +48,7 @@ async function autoLogin() {
     }
     console.log('Login success');
   } catch (error) {
-    console.error('Error:', error);
+    console.error('autoLogin error:', error);
   }
 }
 
@@ -65,29 +66,70 @@ async function searchBooking(blNo) {
     }
     console.log('Search success');
   } catch (error) {
-    console.error('Error:', error);
+    console.error('searchBooking error:', error);
   }
 }
 
-async function clickInputVGM(window) {
-  const inputVGM = [
-    { type: 'click', x: 370, y: 660 },
-    { type: 'html', selector: '#cntr_0', content: "1234567890" },
-    { type: 'html', selector: '#method_0', content: "SM1" },
-    { type: 'html', selector: '#wt_0', content: "11111" },
-    { type: 'html', selector: '#sign_0', content: "MYLAN" },
-    { x: 716, y: 590 },
-
-    // { type: 'click', x: 370, y: 450 },
-    // { type: 'enter' },
-  ];
+async function inputVGM(window, vgmDataList) {
   try {
-    for (const action of inputVGM) {
-      await executeAction(action, 1000, window);
+    await executeAction({ type: 'click', x: 370, y: 660 }, 1000);
+
+    for (let i = 0; i < vgmDataList.length; i++) {
+      const vgmData = vgmDataList[i];
+      const inputActions = [
+        { type: 'html', selector: `#cntr_${i}`, content: vgmData.containerNo },
+        { type: 'html', selector: `#method_${i}`, content: vgmData.method },
+        { type: 'html', selector: `#wt_${i}`, content: vgmData.overweight },
+        { type: 'html', selector: `#sign_${i}`, content: vgmData.signature },
+      ];
+
+      for (const action of inputActions) {
+        await executeAction(action, 1000, window);
+      }
     }
+
+    await executeAction({ x: 716, y: 590 }, 1000);
     console.log('Input VGM success');
   } catch (error) {
-    console.error('Error:', error);
+    console.error('inputVGM error:', error);
+  }
+}
+
+async function getVGMData(blNo, filePath) {
+  try {
+    if (!filePath) {
+      const response = await fetch(`https://www.dadaex.cn/api/seaOrder/getKmtcOrder?blNo=${blNo}`);
+      const data = await response.json();
+      // return data;
+      if (data.status === 1 && data.data.length > 0) {
+      const order = data.data[0].sea_order;
+      const vgmData = order.containner_vgms.map(vgm => ({
+        containerNo: vgm.boxNub,
+        method: "SM2",
+        overweight: vgm.weight ? parseFloat(vgm.weight).toString() : "",
+        signature: vgm.signature || "MYLAN"
+      }));
+      return vgmData;
+    }
+    throw new Error('No data found');
+  }
+  const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet);
+    
+    if (data.length > 0) {
+      return data.map(row => ({
+        containerNo: row['Container No.'],
+        method: "SM2",
+        overweight: row['Weight(Kg)'],
+        signature: "MYLAN"
+      }));
+    }
+    throw new Error('File not contain VGM data');
+  } catch (error) {
+    console.error('Error getting VGM data:', error);
+    return null;
   }
 }
 
@@ -116,7 +158,7 @@ async function executeAction(action, delayTime, window = null) {
       break;
     case 'html':
       if (!window) {
-        throw new Error('WebWindow chưa được khởi tạo');
+        throw new Error('WebWindow is not created');
       }
       await delay(500);
       await window.webContents.executeJavaScript(`
@@ -183,8 +225,15 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
 
-ipcMain.handle('submit-bl-no', async (event, blNo) => {
+ipcMain.handle('submit-button', async (event, blNo, filePath) => {
   try {
+    const vgmData = await getVGMData(blNo, filePath);
+    if (!vgmData) {
+      throw new Error('VGM data not found');
+    }
+
+    console.log('VGM data:', vgmData);
+
     const window = await createWebWindow();
 
     await delay(3000);
@@ -192,7 +241,7 @@ ipcMain.handle('submit-bl-no', async (event, blNo) => {
     await delay(3000);
     await searchBooking(blNo);
     await delay(3000);
-    await clickInputVGM(window);
+    await inputVGM(window, vgmData);
 
     await delay(2000);
 
@@ -210,16 +259,6 @@ ipcMain.handle('submit-bl-no', async (event, blNo) => {
     if (window && !window.isDestroyed()) {
       window.close();
     }
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('upload-xlsx', async (event, filePath) => {
-  try {
-    // Xử lý file xlsx ở đây
-    console.log('Received file path:', filePath);
-    return { success: true };
-  } catch (error) {
     return { success: false, error: error.message };
   }
 });
