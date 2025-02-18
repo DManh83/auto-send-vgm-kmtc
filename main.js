@@ -106,7 +106,7 @@ async function getVGMData(blNo, filePath) {
       const vgmData = order.containner_vgms.map(vgm => ({
         containerNo: vgm.boxNub,
         method: "SM2",
-        overweight: vgm.weight ? parseFloat(vgm.weight).toString() : "",
+        overweight: vgm.overweight ? parseFloat(vgm.overweight).toString() : "",
         signature: vgm.signature || "MYLAN"
       }));
       return vgmData;
