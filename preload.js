@@ -1,5 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  submitButton: (blNo, filePath) => ipcRenderer.invoke('submit-button', blNo, filePath),
+  sendVGM: (blNo, filePath) => ipcRenderer.invoke('send-vgm', blNo, filePath),
+  submitSI: (blNo, filePath) => ipcRenderer.invoke('submit-si', blNo, filePath),
 });
